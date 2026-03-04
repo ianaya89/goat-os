@@ -190,7 +190,7 @@ export const organizationTrainingSessionRouter = createTRPCRouter({
 			}
 
 			// Run queries in parallel
-			const [sessions, countResult] = await Promise.all([
+			const [sessionsRaw, countResult] = await Promise.all([
 				db.query.trainingSessionTable.findMany({
 					where: whereCondition,
 					limit: input.limit,
@@ -233,12 +233,16 @@ export const organizationTrainingSessionRouter = createTRPCRouter({
 								},
 							},
 						},
-						payments: {
-							columns: {
-								id: true,
-								status: true,
-								amount: true,
-								paidAmount: true,
+						paymentLinks: {
+							with: {
+								payment: {
+									columns: {
+										id: true,
+										status: true,
+										amount: true,
+										paidAmount: true,
+									},
+								},
 							},
 						},
 					},
@@ -248,6 +252,12 @@ export const organizationTrainingSessionRouter = createTRPCRouter({
 					.from(trainingSessionTable)
 					.where(whereCondition),
 			]);
+
+			// Map paymentLinks to a flat payments array for the UI
+			const sessions = sessionsRaw.map(({ paymentLinks, ...rest }) => ({
+				...rest,
+				payments: paymentLinks.map((link) => link.payment),
+			}));
 
 			return { sessions, total: countResult[0]?.count ?? 0 };
 		}),
@@ -416,7 +426,11 @@ export const organizationTrainingSessionRouter = createTRPCRouter({
 					},
 					attendances: true,
 					evaluations: true,
-					payments: true,
+					paymentLinks: {
+						with: {
+							payment: true,
+						},
+					},
 				},
 			});
 
@@ -427,7 +441,9 @@ export const organizationTrainingSessionRouter = createTRPCRouter({
 				});
 			}
 
-			return session;
+			// Map paymentLinks to a flat payments array for the UI
+			const { paymentLinks, ...rest } = session;
+			return { ...rest, payments: paymentLinks.map((link) => link.payment) };
 		}),
 
 	create: protectedOrganizationProcedure
