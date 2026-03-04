@@ -346,7 +346,6 @@ export const PaymentsModal = NiceModal.create<PaymentsModalProps>(
 				: {
 						type: "training",
 						registrationId: null,
-						sessionId: null, // Keep for backwards compatibility
 						sessionIds: initialSessionIds,
 						athleteId: initialAthleteId,
 						serviceId: null,
@@ -543,28 +542,42 @@ export const PaymentsModal = NiceModal.create<PaymentsModalProps>(
 			}
 		});
 
-		// Reset form and local state when modal opens for creation
+		// Reset form and local state when modal opens
 		const prevVisibleRef = React.useRef(false);
 		React.useEffect(() => {
-			if (modal.visible && !prevVisibleRef.current && !isEditing) {
-				form.reset({
-					type: "training",
-					registrationId: null,
-					sessionId: null,
-					sessionIds: initialSessionIds,
-					athleteId: initialAthleteId,
-					serviceId: null,
-					amount: 0,
-					currency: "ARS",
-					status: TrainingPaymentStatus.paid,
-					paymentMethod: "cash",
-					paidAmount: 0,
-					discountPercentage: 0,
-					paymentDate: new Date(),
-					receiptNumber: "",
-					description: "",
-					notes: "",
-				});
+			if (modal.visible && !prevVisibleRef.current) {
+				if (isEditing && payment) {
+					form.reset({
+						id: payment.id,
+						amount: payment.amount / 100,
+						status: payment.status as TrainingPaymentStatus,
+						paymentMethod:
+							(payment.paymentMethod as TrainingPaymentMethod) ?? null,
+						paidAmount: payment.paidAmount / 100,
+						paymentDate: payment.paymentDate ?? undefined,
+						receiptNumber: payment.receiptNumber ?? "",
+						description: payment.description ?? "",
+						notes: payment.notes ?? "",
+					});
+				} else {
+					form.reset({
+						type: "training",
+						registrationId: null,
+						sessionIds: initialSessionIds,
+						athleteId: initialAthleteId,
+						serviceId: null,
+						amount: 0,
+						currency: "ARS",
+						status: TrainingPaymentStatus.paid,
+						paymentMethod: "cash",
+						paidAmount: 0,
+						discountPercentage: 0,
+						paymentDate: new Date(),
+						receiptNumber: "",
+						description: "",
+						notes: "",
+					});
+				}
 				setSelectedSessions([]);
 				setSelectedAthleteLabel(null);
 				setSelectedServiceLabel(null);
@@ -577,7 +590,14 @@ export const PaymentsModal = NiceModal.create<PaymentsModalProps>(
 				setSelectedRegistrationId(null);
 			}
 			prevVisibleRef.current = modal.visible;
-		}, [modal.visible, isEditing, form, initialSessionIds, initialAthleteId]);
+		}, [
+			modal.visible,
+			isEditing,
+			payment,
+			form,
+			initialSessionIds,
+			initialAthleteId,
+		]);
 
 		const isPending =
 			createPaymentMutation.isPending ||
@@ -1080,7 +1100,6 @@ export const PaymentsModal = NiceModal.create<PaymentsModalProps>(
 																							}
 																							// Clear session/service selections
 																							form.setValue("sessionIds", []);
-																							form.setValue("sessionId", null);
 																							form.setValue("serviceId", null);
 																							setSelectedSessions([]);
 																							setSelectedServiceLabel(null);

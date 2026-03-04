@@ -56,9 +56,7 @@ export const createTrainingPaymentSchema = z.object({
 	type: z.enum(["training", "event"]).default("training"),
 	// Event payment: link to event registration
 	registrationId: z.string().uuid().optional().nullable(),
-	// Legacy: single session (for backwards compatibility)
-	sessionId: z.string().uuid().optional().nullable(),
-	// New: multiple sessions (for package payments)
+	// Sessions linked to this payment (via junction table)
 	sessionIds: z.array(z.string().uuid()).optional(),
 	athleteId: z.string().uuid().optional().nullable(),
 	serviceId: z.string().uuid().optional().nullable(),

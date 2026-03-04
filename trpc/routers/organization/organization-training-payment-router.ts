@@ -109,11 +109,22 @@ export const organizationTrainingPaymentRouter = createTRPCRouter({
 				);
 			}
 
-			// Session filter
+			// Session filter (via junction table)
 			if (input.filters?.sessionId) {
-				conditions.push(
-					eq(trainingPaymentTable.sessionId, input.filters.sessionId),
-				);
+				const linkedPayments =
+					await db.query.trainingPaymentSessionTable.findMany({
+						where: eq(
+							trainingPaymentSessionTable.sessionId,
+							input.filters.sessionId,
+						),
+						columns: { paymentId: true },
+					});
+				const linkedIds = linkedPayments.map((lp) => lp.paymentId);
+				if (linkedIds.length > 0) {
+					conditions.push(inArray(trainingPaymentTable.id, linkedIds));
+				} else {
+					conditions.push(eq(trainingPaymentTable.id, "no-match"));
+				}
 			}
 
 			// Service filter
@@ -310,19 +321,35 @@ export const organizationTrainingPaymentRouter = createTRPCRouter({
 				});
 			}
 
-			const payments = await db.query.trainingPaymentTable.findMany({
-				where: eq(trainingPaymentTable.sessionId, input.sessionId),
-				orderBy: desc(trainingPaymentTable.createdAt),
+			// Find payments linked via junction table
+			const paymentLinks = await db.query.trainingPaymentSessionTable.findMany({
+				where: eq(trainingPaymentSessionTable.sessionId, input.sessionId),
 				with: {
-					athlete: {
+					payment: {
 						with: {
-							user: {
-								columns: { id: true, name: true, email: true, image: true },
+							athlete: {
+								with: {
+									user: {
+										columns: {
+											id: true,
+											name: true,
+											email: true,
+											image: true,
+										},
+									},
+								},
 							},
 						},
 					},
 				},
 			});
+
+			const payments = paymentLinks.map((link) => link.payment);
+			// Sort by createdAt desc
+			payments.sort(
+				(a, b) =>
+					new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+			);
 
 			return payments;
 		}),
@@ -356,24 +383,7 @@ export const organizationTrainingPaymentRouter = createTRPCRouter({
 				}
 			}
 
-			// Verify single session belongs to organization if provided (legacy)
-			if (paymentData.sessionId) {
-				const session = await db.query.trainingSessionTable.findFirst({
-					where: and(
-						eq(trainingSessionTable.id, paymentData.sessionId),
-						eq(trainingSessionTable.organizationId, ctx.organization.id),
-					),
-				});
-
-				if (!session) {
-					throw new TRPCError({
-						code: "NOT_FOUND",
-						message: "Session not found",
-					});
-				}
-			}
-
-			// Verify multiple sessions belong to organization if provided (package)
+			// Verify sessions belong to organization if provided
 			if (sessionIds && sessionIds.length > 0) {
 				const sessions = await db.query.trainingSessionTable.findMany({
 					where: and(

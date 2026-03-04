@@ -87,7 +87,10 @@
 			"Bash(do sed -i '' 's/hsl\\(var\\(--chart-/var\\(--chart-/g; s/\\)\\)\"\"/\\)\"\"/' \"$f\")",
 			"Bash(done)",
 			"Bash(do sed -i '' 's|hsl\\(var\\(--chart-\\\\\\([0-9]\\\\\\)\\)\\)|var\\(--chart-\\\\1\\)|g' \"$f\")",
-			"Bash(do gsed -i 's/hsl\\(var\\(--chart-\\\\\\([0-9]\\\\\\)\\)\\)/var\\(--chart-\\\\1\\)/g' \"$f\")"
+			"Bash(do gsed -i 's/hsl\\(var\\(--chart-\\\\\\([0-9]\\\\\\)\\)\\)/var\\(--chart-\\\\1\\)/g' \"$f\")",
+			"Bash(git status:*)",
+			"Bash(git push:*)",
+			"Bash(gh pr create:*)"
 		]
 	}
 }
