@@ -52,6 +52,31 @@ const nextConfig: NextConfig = {
 			},
 		],
 	},
+	async headers() {
+		return [
+			{
+				source: "/api/trpc/:path*",
+				headers: [
+					{
+						key: "Access-Control-Allow-Origin",
+						value: "https://montegrande.goatsports.ar",
+					},
+					{
+						key: "Access-Control-Allow-Methods",
+						value: "GET, POST, OPTIONS",
+					},
+					{
+						key: "Access-Control-Allow-Headers",
+						value: "Content-Type",
+					},
+					{
+						key: "Access-Control-Max-Age",
+						value: "86400",
+					},
+				],
+			},
+		];
+	},
 	async redirects() {
 		return [
 			{
