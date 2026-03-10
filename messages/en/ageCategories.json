@@ -12,7 +12,8 @@
 		"openMenu": "Open menu",
 		"edit": "Edit category",
 		"delete": "Delete category",
-		"noCategories": "No age categories found."
+		"noCategories": "No age categories found.",
+		"idCopied": "ID copied to clipboard"
 	},
 	"modal": {
 		"createTitle": "New Age Category",

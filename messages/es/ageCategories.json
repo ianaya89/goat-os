@@ -12,7 +12,8 @@
 		"openMenu": "Abrir menú",
 		"edit": "Editar categoría",
 		"delete": "Eliminar categoría",
-		"noCategories": "No hay categorías de edad."
+		"noCategories": "No hay categorías de edad.",
+		"idCopied": "ID copiado al portapapeles"
 	},
 	"modal": {
 		"createTitle": "Nueva Categoría de Edad",

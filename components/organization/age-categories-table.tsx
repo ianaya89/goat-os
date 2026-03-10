@@ -3,6 +3,7 @@
 import NiceModal from "@ebay/nice-modal-react";
 import type { ColumnDef, ColumnFiltersState } from "@tanstack/react-table";
 import {
+	CopyIcon,
 	MoreHorizontalIcon,
 	PencilIcon,
 	PlusIcon,
@@ -119,6 +120,28 @@ export function AgeCategoriesTable(): React.JSX.Element {
 
 	const columns: ColumnDef<AgeCategory>[] = [
 		createSelectionColumn<AgeCategory>(),
+		{
+			id: "shortId",
+			header: "ID",
+			cell: ({ row }) => {
+				const fullId = row.original.id;
+				const shortId = fullId.slice(-8);
+				return (
+					<button
+						type="button"
+						onClick={() => {
+							navigator.clipboard.writeText(fullId);
+							toast.success(t("table.idCopied"));
+						}}
+						className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground transition-colors"
+						title={fullId}
+					>
+						{shortId}
+						<CopyIcon className="size-3" />
+					</button>
+				);
+			},
+		},
 		{
 			accessorKey: "displayName",
 			header: t("table.name"),
