@@ -448,9 +448,9 @@ export const publicEventRouter = createTRPCRouter({
 
 			const email = input.email.toLowerCase();
 
-			// Check if already registered for THIS event
-			const existingRegistration =
-				await db.query.eventRegistrationTable.findFirst({
+			// Check existing registrations for THIS event with this email
+			const existingRegistrations =
+				await db.query.eventRegistrationTable.findMany({
 					where: and(
 						eq(eventRegistrationTable.eventId, event.id),
 						eq(eventRegistrationTable.registrantEmail, email),
@@ -458,22 +458,10 @@ export const publicEventRouter = createTRPCRouter({
 					columns: {
 						id: true,
 						registrationNumber: true,
+						registrantName: true,
 						status: true,
 					},
 				});
-
-			if (existingRegistration) {
-				return {
-					isAlreadyRegistered: true,
-					existingRegistration: {
-						id: existingRegistration.id,
-						registrationNumber: existingRegistration.registrationNumber,
-						status: existingRegistration.status,
-					},
-					user: null,
-					athlete: null,
-				};
-			}
 
 			// Look up user by email
 			const existingUser = await db.query.userTable.findFirst({
@@ -487,8 +475,7 @@ export const publicEventRouter = createTRPCRouter({
 
 			if (!existingUser) {
 				return {
-					isAlreadyRegistered: false,
-					existingRegistration: null,
+					existingRegistrations,
 					user: null,
 					athlete: null,
 				};
@@ -523,8 +510,7 @@ export const publicEventRouter = createTRPCRouter({
 			});
 
 			return {
-				isAlreadyRegistered: false,
-				existingRegistration: null,
+				existingRegistrations,
 				user: {
 					id: existingUser.id,
 					name: existingUser.name,
@@ -606,19 +592,21 @@ export const publicEventRouter = createTRPCRouter({
 
 			const email = input.registrantEmail.toLowerCase();
 
-			// Check if already registered
+			// Check if same person (email + name) is already registered
+			// We allow the same email with different names (e.g. parent registering siblings)
 			const existingRegistration =
 				await db.query.eventRegistrationTable.findFirst({
 					where: and(
 						eq(eventRegistrationTable.eventId, event.id),
 						eq(eventRegistrationTable.registrantEmail, email),
+						eq(eventRegistrationTable.registrantName, input.registrantName),
 					),
 				});
 
 			if (existingRegistration) {
 				throw new TRPCError({
 					code: "CONFLICT",
-					message: "This email is already registered for this event",
+					message: "This person is already registered for this event",
 				});
 			}
 
@@ -779,43 +767,96 @@ export const publicEventRouter = createTRPCRouter({
 				if (existingUser) {
 					userId = existingUser.id;
 
-					// Check if athlete exists for this organization
-					const existingAthlete = await tx.query.athleteTable.findFirst({
-						where: and(
-							eq(athleteTable.organizationId, organization.id),
-							eq(athleteTable.userId, userId),
-						),
-					});
+					// Check if this is the same person or a different one (e.g. sibling)
+					const isSamePerson =
+						existingUser.name.toLowerCase().trim() ===
+						input.registrantName.toLowerCase().trim();
 
-					if (existingAthlete) {
-						athleteId = existingAthlete.id;
+					if (isSamePerson) {
+						// Same person: find and update their athlete profile
+						const existingAthlete = await tx.query.athleteTable.findFirst({
+							where: and(
+								eq(athleteTable.organizationId, organization.id),
+								eq(athleteTable.userId, userId),
+							),
+						});
 
-						// Update athlete with new fields if provided
-						const athleteUpdates: Record<string, unknown> = {};
-						if (input.dni) athleteUpdates.dni = input.dni;
-						if (input.position) athleteUpdates.position = input.position;
-						if (input.currentClub)
-							athleteUpdates.currentClubName = input.currentClub;
-						if (input.division) athleteUpdates.category = input.division;
-						if (input.shirtSize) athleteUpdates.shirtSize = input.shirtSize;
-						if (input.dietaryRestrictions)
-							athleteUpdates.dietaryRestrictions = input.dietaryRestrictions;
-						if (input.registrantBirthDate)
-							athleteUpdates.birthDate = input.registrantBirthDate;
+						if (existingAthlete) {
+							athleteId = existingAthlete.id;
 
-						if (Object.keys(athleteUpdates).length > 0) {
-							await tx
-								.update(athleteTable)
-								.set(athleteUpdates)
-								.where(eq(athleteTable.id, existingAthlete.id));
+							const athleteUpdates: Record<string, unknown> = {};
+							if (input.dni) athleteUpdates.dni = input.dni;
+							if (input.position) athleteUpdates.position = input.position;
+							if (input.currentClub)
+								athleteUpdates.currentClubName = input.currentClub;
+							if (input.division) athleteUpdates.category = input.division;
+							if (input.shirtSize) athleteUpdates.shirtSize = input.shirtSize;
+							if (input.dietaryRestrictions)
+								athleteUpdates.dietaryRestrictions = input.dietaryRestrictions;
+							if (input.registrantBirthDate)
+								athleteUpdates.birthDate = input.registrantBirthDate;
+
+							if (Object.keys(athleteUpdates).length > 0) {
+								await tx
+									.update(athleteTable)
+									.set(athleteUpdates)
+									.where(eq(athleteTable.id, existingAthlete.id));
+							}
+						} else {
+							const [newAthlete] = await tx
+								.insert(athleteTable)
+								.values({
+									organizationId: organization.id,
+									userId,
+									sport: "general",
+									birthDate: input.registrantBirthDate,
+									dni: input.dni,
+									position: input.position,
+									currentClubName: input.currentClub,
+									category: input.division,
+									shirtSize: input.shirtSize,
+									dietaryRestrictions: input.dietaryRestrictions,
+									parentName: input.emergencyContactName,
+									parentPhone: input.emergencyContactPhone,
+									parentEmail: email,
+								})
+								.returning();
+							if (!newAthlete) {
+								throw new TRPCError({
+									code: "INTERNAL_SERVER_ERROR",
+									message: "Failed to create athlete profile",
+								});
+							}
+							athleteId = newAthlete.id;
 						}
 					} else {
-						// Create athlete for this organization
+						// Different person (sibling): create a separate user + athlete
+						// Use a generated email so we don't collide with the parent's account
+						const siblingEmail = `${nanoid(12)}@athlete.goat.ar`;
+
+						const [siblingUser] = await tx
+							.insert(userTable)
+							.values({
+								email: siblingEmail,
+								name: input.registrantName,
+								emailVerified: false,
+							})
+							.returning();
+
+						if (!siblingUser) {
+							throw new TRPCError({
+								code: "INTERNAL_SERVER_ERROR",
+								message: "Failed to create user for sibling",
+							});
+						}
+
+						userId = siblingUser.id;
+
 						const [newAthlete] = await tx
 							.insert(athleteTable)
 							.values({
 								organizationId: organization.id,
-								userId,
+								userId: siblingUser.id,
 								sport: "general",
 								birthDate: input.registrantBirthDate,
 								dni: input.dni,
@@ -824,6 +865,9 @@ export const publicEventRouter = createTRPCRouter({
 								category: input.division,
 								shirtSize: input.shirtSize,
 								dietaryRestrictions: input.dietaryRestrictions,
+								parentName: input.emergencyContactName,
+								parentPhone: input.emergencyContactPhone,
+								parentEmail: email,
 							})
 							.returning();
 						if (!newAthlete) {
@@ -833,6 +877,13 @@ export const publicEventRouter = createTRPCRouter({
 							});
 						}
 						athleteId = newAthlete.id;
+
+						// Also ensure sibling user is a member
+						await tx.insert(memberTable).values({
+							organizationId: organization.id,
+							userId: siblingUser.id,
+							role: MemberRole.member,
+						});
 					}
 				} else {
 					// Create new user
@@ -860,7 +911,7 @@ export const publicEventRouter = createTRPCRouter({
 						userId: newUser.id,
 						providerId: "credential",
 						accountId: newUser.id,
-						password: tempPassword, // In production, this should be hashed
+						password: tempPassword,
 					});
 
 					// Create athlete for new user
@@ -877,6 +928,9 @@ export const publicEventRouter = createTRPCRouter({
 							category: input.division,
 							shirtSize: input.shirtSize,
 							dietaryRestrictions: input.dietaryRestrictions,
+							parentName: input.emergencyContactName,
+							parentPhone: input.emergencyContactPhone,
+							parentEmail: email,
 						})
 						.returning();
 					if (!newAthlete) {

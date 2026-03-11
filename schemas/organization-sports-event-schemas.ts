@@ -337,6 +337,10 @@ export const cancelEventRegistrationSchema = z.object({
 	reason: z.string().trim().max(500).optional(),
 });
 
+export const deleteEventRegistrationSchema = z.object({
+	id: z.string().uuid(),
+});
+
 export const confirmFromWaitlistSchema = z.object({
 	id: z.string().uuid(),
 });
@@ -702,6 +706,9 @@ export type UpdateEventRegistrationInput = z.infer<
 >;
 export type CancelEventRegistrationInput = z.infer<
 	typeof cancelEventRegistrationSchema
+>;
+export type DeleteEventRegistrationInput = z.infer<
+	typeof deleteEventRegistrationSchema
 >;
 export type ConfirmFromWaitlistInput = z.infer<
 	typeof confirmFromWaitlistSchema

@@ -9,7 +9,7 @@ import {
 import * as React from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import {
 	Form,
 	FormControl,
@@ -23,6 +23,7 @@ import {
 	type ExistingAthleteData,
 	type ExistingUserData,
 	emailStepSchema,
+	type LookupAthleteResult,
 } from "@/schemas/public-event-registration-wizard-schemas";
 import { trpc } from "@/trpc/client";
 
@@ -33,11 +34,7 @@ interface EmailStepProps {
 	isReturningAthlete: boolean;
 	existingUser: ExistingUserData | null;
 	onEmailVerified: (email: string) => void;
-	onLookupResult: (result: {
-		isAlreadyRegistered: boolean;
-		user: ExistingUserData | null;
-		athlete: ExistingAthleteData | null;
-	}) => void;
+	onLookupResult: (result: LookupAthleteResult) => void;
 	onUseExistingData: (use: boolean) => void;
 	onNext: () => void;
 }
@@ -53,8 +50,10 @@ export function EmailStep({
 	onUseExistingData,
 	onNext,
 }: EmailStepProps) {
-	const [isAlreadyRegistered, setIsAlreadyRegistered] = React.useState(false);
 	const [hasLookedUp, setHasLookedUp] = React.useState(false);
+	const [existingRegistrations, setExistingRegistrations] = React.useState<
+		LookupAthleteResult["existingRegistrations"]
+	>([]);
 
 	const form = useZodForm({
 		schema: emailStepSchema,
@@ -85,21 +84,13 @@ export function EmailStep({
 
 		if (result.data) {
 			setHasLookedUp(true);
-			if (result.data.isAlreadyRegistered) {
-				setIsAlreadyRegistered(true);
-			} else {
-				onLookupResult(result.data);
-			}
+			setExistingRegistrations(result.data.existingRegistrations ?? []);
+			onLookupResult(result.data);
 		}
 	};
 
 	const handleContinue = () => {
-		if (isReturningAthlete) {
-			// Already decided, move on
-			onNext();
-		} else {
-			onNext();
-		}
+		onNext();
 	};
 
 	const handleUseExisting = () => {
@@ -112,38 +103,29 @@ export function EmailStep({
 		onNext();
 	};
 
-	// If already registered for this event
-	if (isAlreadyRegistered) {
-		return (
-			<div className="space-y-6">
-				<Alert variant="destructive">
-					<AlertCircleIcon className="h-4 w-4" />
-					<AlertTitle>Email ya registrado</AlertTitle>
-					<AlertDescription>
-						Este email ya está registrado para este evento. Si necesitas
-						modificar tu inscripción, contacta al organizador.
-					</AlertDescription>
-				</Alert>
-
-				<Button
-					variant="outline"
-					onClick={() => {
-						setIsAlreadyRegistered(false);
-						setHasLookedUp(false);
-						form.reset();
-					}}
-					className="w-full"
-				>
-					Intentar con otro email
-				</Button>
-			</div>
-		);
-	}
-
 	// If returning athlete detected
 	if (hasLookedUp && isReturningAthlete && existingUser) {
 		return (
 			<div className="space-y-6">
+				{existingRegistrations.length > 0 && (
+					<Alert className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+						<AlertCircleIcon className="h-4 w-4" />
+						<AlertTitle>Inscripciones existentes</AlertTitle>
+						<AlertDescription>
+							<ul className="mt-1 space-y-0.5 text-sm">
+								{existingRegistrations.map((r) => (
+									<li key={r.id}>
+										#{r.registrationNumber} — {r.registrantName}
+									</li>
+								))}
+							</ul>
+							<p className="mt-2 text-xs">
+								Podés continuar para inscribir a otro participante.
+							</p>
+						</AlertDescription>
+					</Alert>
+				)}
+
 				<Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
 					<CheckCircle2Icon className="h-4 w-4" />
 					<AlertTitle>Bienvenido de nuevo, {existingUser.name}</AlertTitle>
@@ -170,12 +152,32 @@ export function EmailStep({
 	if (hasLookedUp && !isReturningAthlete) {
 		return (
 			<div className="space-y-6">
+				{existingRegistrations.length > 0 && (
+					<Alert className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+						<AlertCircleIcon className="h-4 w-4" />
+						<AlertTitle>Inscripciones existentes</AlertTitle>
+						<AlertDescription>
+							<ul className="mt-1 space-y-0.5 text-sm">
+								{existingRegistrations.map((r) => (
+									<li key={r.id}>
+										#{r.registrationNumber} — {r.registrantName}
+									</li>
+								))}
+							</ul>
+							<p className="mt-2 text-xs">
+								Podés continuar para inscribir a otro participante.
+							</p>
+						</AlertDescription>
+					</Alert>
+				)}
+
 				<Alert>
 					<CheckCircle2Icon className="h-4 w-4" />
 					<AlertTitle>Email verificado</AlertTitle>
 					<AlertDescription>
-						No encontramos un perfil existente. A continuación completarás tus
-						datos.
+						{existingRegistrations.length > 0
+							? "Podés inscribir a otro participante con este email."
+							: "No encontramos un perfil existente. A continuación completarás tus datos."}
 					</AlertDescription>
 				</Alert>
 

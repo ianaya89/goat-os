@@ -57,6 +57,7 @@ import {
 	createSportsEventSchema,
 	deleteAgeCategorySchema,
 	deleteDiscountSchema,
+	deleteEventRegistrationSchema,
 	deletePaymentReceiptSchema,
 	deletePricingTierSchema,
 	deleteSportsEventSchema,
@@ -1225,6 +1226,37 @@ export const organizationSportsEventRouter = createTRPCRouter({
 			}
 
 			return updated;
+		}),
+
+	deleteRegistration: protectedOrganizationProcedure
+		.input(deleteEventRegistrationSchema)
+		.mutation(async ({ ctx, input }) => {
+			const registration = await db.query.eventRegistrationTable.findFirst({
+				where: and(
+					eq(eventRegistrationTable.id, input.id),
+					eq(eventRegistrationTable.organizationId, ctx.organization.id),
+				),
+			});
+
+			if (!registration) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Registration not found",
+				});
+			}
+
+			if (registration.status !== EventRegistrationStatus.cancelled) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Only cancelled registrations can be deleted",
+				});
+			}
+
+			await db
+				.delete(eventRegistrationTable)
+				.where(eq(eventRegistrationTable.id, input.id));
+
+			return { success: true };
 		}),
 
 	confirmFromWaitlist: protectedOrganizationProcedure

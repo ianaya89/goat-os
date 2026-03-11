@@ -294,12 +294,12 @@ export interface ExistingUserData {
 }
 
 export interface LookupAthleteResult {
-	isAlreadyRegistered: boolean;
-	existingRegistration: {
+	existingRegistrations: {
 		id: string;
 		registrationNumber: number;
+		registrantName: string;
 		status: string;
-	} | null;
+	}[];
 	user: ExistingUserData | null;
 	athlete: ExistingAthleteData | null;
 }

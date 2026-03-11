@@ -11,6 +11,7 @@ import {
 	CreditCardIcon,
 	EyeIcon,
 	MoreHorizontalIcon,
+	Trash2Icon,
 	UserIcon,
 	XCircleIcon,
 } from "lucide-react";
@@ -213,6 +214,18 @@ export function EventRegistrationsTable({
 			},
 		});
 
+	const deleteRegistrationMutation =
+		trpc.organization.sportsEvent.deleteRegistration.useMutation({
+			onSuccess: () => {
+				toast.success("Inscripción eliminada");
+				utils.organization.sportsEvent.listRegistrations.invalidate();
+				utils.organization.sportsEvent.get.invalidate();
+			},
+			onError: (error: { message?: string }) => {
+				toast.error(error.message || "Error al eliminar la inscripción");
+			},
+		});
+
 	const handleSearchQueryChange = (value: string): void => {
 		if (value !== searchQuery) {
 			setSearchQuery(value);
@@ -385,6 +398,27 @@ export function EventRegistrationsTable({
 								>
 									<XCircleIcon className="mr-2 size-4" />
 									Cancelar inscripción
+								</DropdownMenuItem>
+							)}
+							{row.original.status === "cancelled" && (
+								<DropdownMenuItem
+									onClick={() => {
+										NiceModal.show(ConfirmationModal, {
+											title: "¿Eliminar inscripción?",
+											message:
+												"Esta acción es irreversible. Se eliminará permanentemente el registro de inscripción.",
+											confirmLabel: "Eliminar",
+											destructive: true,
+											onConfirm: () =>
+												deleteRegistrationMutation.mutate({
+													id: row.original.id,
+												}),
+										});
+									}}
+									variant="destructive"
+								>
+									<Trash2Icon className="mr-2 size-4" />
+									Eliminar inscripción
 								</DropdownMenuItem>
 							)}
 						</DropdownMenuContent>

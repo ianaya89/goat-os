@@ -163,7 +163,12 @@ export function EventRegistrationWizard({
 
 	// Handle email lookup result
 	const handleEmailLookupResult = (result: {
-		isAlreadyRegistered: boolean;
+		existingRegistrations: {
+			id: string;
+			registrationNumber: number;
+			registrantName: string;
+			status: string;
+		}[];
 		user: ExistingUserData | null;
 		athlete: ExistingAthleteData | null;
 	}) => {
